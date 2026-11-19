@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quadro Sonoro · v24</title>
+<style>
+  :root{
+    --carta:#f3efe6; --inchiostro:#1d2a2a; --rame:#b8693a; --muschio:#4f6b4a;
+    --bg:var(--carta); --fg:var(--inchiostro); --pad:#e6e0d2;
+  }
+  /* Zero-Screen: tutto nero, resta solo il tasto per uscire */
+  .zero{ --bg:#000; --fg:#cfd8d3; --pad:#1b2624; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);
+    font:17px/1.5 Georgia,"Times New Roman",serif;transition:background .4s}
+  main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+  body.zero main{visibility:hidden}
+  h1{font-size:1.6rem;margin:0 0 4px}
+  p{margin:0 0 12px}
+  button,select{font:inherit;padding:12px 16px;border-radius:10px;border:2px solid var(--fg);
+    background:transparent;color:var(--fg);min-height:48px}
+  button:focus-visible,select:focus-visible,.pad:focus-visible,summary:focus-visible{outline:4px solid var(--muschio);outline-offset:2px}
+  .file{display:inline-flex;align-items:center;cursor:pointer;padding:12px 16px;border-radius:10px;border:2px solid var(--fg);min-height:48px;position:relative}
+  .file:focus-within{outline:4px solid var(--muschio);outline-offset:2px}
+  .file input{position:absolute;opacity:0;width:1px;height:1px}
+  label{display:flex;gap:10px;align-items:center;margin:8px 0}
+  #stato{font-size:.95rem;min-height:1.5em}
+  #impostazioni{margin:16px 0}
+  details.nascondibile{margin:16px 0}
+  details.nascondibile summary{cursor:pointer;padding:12px 16px;min-height:48px;border:2px solid var(--fg);border-radius:10px}
+  details.nascondibile ul{margin:10px 0 0;padding-left:20px;font-size:.95rem}
+  details.nascondibile li{margin:4px 0}
+
+  /* Griglia pad a schermo (alternativa e monitor dei pin) */
+  #griglia{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
+  .pad{aspect-ratio:1;border-radius:14px;border:2px solid var(--fg);background:var(--pad);
+    color:var(--fg);font:inherit;display:flex;align-items:center;justify-content:center;
+    touch-action:manipulation;transition:background .08s,transform .08s}
+  .pad.on{background:var(--rame);color:#fff;transform:scale(.96)}
+
+  /* ===== Tavoletta grafica ===== */
+  #tavoletta{display:grid;grid-template-columns:1fr;gap:14px;padding:16px;margin:16px 0;
+    border-radius:24px;color:#e8e3d6;position:relative;
+    font-family:"Avenir Next","Trebuchet MS",system-ui,sans-serif;
+    background:linear-gradient(155deg,#3a3e40,#1e2123);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 12px 28px rgba(0,0,0,.28)}
+  #tavoletta button,#tavoletta .file,#tavoletta select{font:inherit;font-size:.9rem;color:#e8e3d6;
+    background:#262a2c;border:1.5px solid #6f7672;border-radius:12px}
+  #tavoletta select{padding:10px 12px;min-height:44px}
+
+  #barraSuperiore{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;
+    font-size:.8rem;letter-spacing:.04em;color:#a9aea9}
+  #marchio{display:flex;align-items:center;gap:10px}
+  #led{width:9px;height:9px;border-radius:50%;background:#3b403d;transition:background .1s,box-shadow .1s}
+  #led.on{background:#7be0a0;box-shadow:0 0 8px #7be0a0}
+  .tastoMidi{position:relative}
+  #btnMenu{position:relative;padding:8px 14px 8px 30px;min-height:40px;font-size:.85rem;
+    background:#b8693a;border-color:#d68a5a;color:#fff}
+  #btnMenu::before{content:"";position:absolute;left:12px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:#444a47}
+  #btnMenu.collegato::before{background:#7be0a0;box-shadow:0 0 6px #7be0a0}
+  #btnMenu[aria-expanded="true"]{border-color:#d9b36f}
+  #pannelloMenu{position:absolute;top:100%;right:0;z-index:6;margin-top:8px;width:min(300px,88vw);
+    display:flex;flex-direction:column;gap:10px;padding:12px;
+    background:#262a2c;border:1.5px solid #6f7672;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.4)}
+  #pannelloMenu[hidden]{display:none}
+  #pannelloMenu label{margin:0;font-size:.85rem;flex-direction:column;align-items:stretch;gap:6px}
+  #pannelloMenu p{margin:0;font-size:.78rem;color:#a9aea9}
+  #pannelloMenu button{width:100%;min-height:44px}
+  #diag{font-variant-numeric:tabular-nums}
+
+  /* Area attiva con segni d'angolo, come sulle tavolette professionali */
+  #display{margin:0;padding:12px;background:
+    linear-gradient(#d9b36f,#d9b36f) top left/18px 2px no-repeat,linear-gradient(#d9b36f,#d9b36f) top left/2px 18px no-repeat,
+    linear-gradient(#d9b36f,#d9b36f) top right/18px 2px no-repeat,linear-gradient(#d9b36f,#d9b36f) top right/2px 18px no-repeat,
+    linear-gradient(#d9b36f,#d9b36f) bottom left/18px 2px no-repeat,linear-gradient(#d9b36f,#d9b36f) bottom left/2px 18px no-repeat,
+    linear-gradient(#d9b36f,#d9b36f) bottom right/18px 2px no-repeat,linear-gradient(#d9b36f,#d9b36f) bottom right/2px 18px no-repeat}
+  #display:fullscreen{background:#000;padding:0;display:flex;align-items:center;justify-content:center}
+  #schermo{position:relative;width:100%;aspect-ratio:4/3;background:#1b2624;border-radius:4px;overflow:hidden;
+    touch-action:manipulation;box-shadow:0 0 0 1px #0b0d0e;max-width:calc(78vh * 1.3333);margin:0 auto}
+  #display:fullscreen #schermo{max-width:none}
+  #schermo img{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:contain;-webkit-user-drag:none;user-select:none}
+  #schermo img[hidden],#vuoto[hidden]{display:none}
+  #visivo{position:absolute;inset:0;width:100%;height:100%}
+  #vuoto{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:#cfd8d3}
+
+  #barraOpera{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  #barraOpera .file{padding:10px 14px;min-height:44px}
+  #barraOpera button{padding:10px 14px;min-height:44px}
+  #barraOpera #conferma{background:#b8693a;border-color:#d68a5a;color:#fff;font-weight:700}
+  #barraOpera #conferma:disabled{opacity:.45}
+  #barraOpera label:not(.file){margin:0;font-size:.9rem;gap:8px}
+  #barraOpera .destra{margin-left:auto;display:flex;flex-wrap:wrap;gap:10px}
+  #barraOpera button[aria-pressed="true"]{border-color:#d9b36f;background:#3a3326}
+
+  #fascia{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;font-size:.8rem;letter-spacing:.04em;color:#a9aea9}
+  #modi{display:flex;flex-wrap:wrap;border:1.5px solid #6f7672;border-radius:12px;overflow:hidden}
+  #modi button{border:0;border-radius:0;padding:10px 14px;min-height:44px;background:#262a2c}
+  #modi button+button{border-left:1.5px solid #6f7672}
+  #modi button[aria-pressed="true"]{background:#d9b36f;color:#1e2123;font-weight:700}
+
+  /* Touch ring */
+  #anello{position:relative;width:96px;height:96px;border-radius:50%;cursor:pointer;
+    touch-action:none;user-select:none;flex:none;
+    background:radial-gradient(circle at 50% 38%,#33383a,#181b1d 72%);box-shadow:inset 0 0 0 1px #4a504d}
+  #anello:focus-visible{outline:4px solid #d9b36f;outline-offset:3px}
+  #anello svg{position:absolute;inset:0;width:100%;height:100%}
+  #anello circle{fill:none;stroke-linecap:round;stroke-width:8}
+  #anello .pista{stroke:#3b403d}
+  #arco{stroke:#d9b36f}
+  #manopola{fill:#f4efe2;stroke:#181b1d;stroke-width:2}
+  #centroAnello{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+  #centroAnello b{font-size:1.15rem;line-height:1;text-align:center;max-width:80%}
+  #centroAnello b.testo{font-size:.78rem}
+  #centroAnello small{font-size:.62rem;color:#a9aea9;margin-top:2px}
+
+  /* Tasto per uscire da Zero-Screen: sempre raggiungibile, molto discreto */
+  #uscitaZero{position:fixed;right:12px;bottom:12px;z-index:20;visibility:visible;
+    color:#6b7a74;border-color:#2a3330;background:#000;font-size:.85rem}
+  #uscitaZero[hidden]{display:none}
+  #uscitaZero:focus-visible,#uscitaZero:hover{color:#cfd8d3;border-color:#cfd8d3}
+
+  @media (max-width:560px){
+    #tavoletta{padding:12px}
+    #anello{width:80px;height:80px}
+    #centroAnello b{font-size:.95rem}
+    #centroAnello small{display:none}
+    #centroAnello b.testo{font-size:.68rem}
+    #modi button{padding:10px 10px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* ===== v24: tutto in una sola schermata, senza scorrimento ===== */
+  html,body{height:100%;overflow:hidden}
+  main{max-width:1200px;height:100dvh;display:flex;flex-direction:column;padding:8px 10px;gap:6px}
+  main > h1{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  main > h1 + p{display:none}
+  #tavoletta{flex:1;min-height:0;margin:0;padding:10px;gap:8px;grid-template-rows:auto minmax(0,1fr) auto auto}
+  #display{min-height:0;padding:10px;display:flex}
+  /* Il display occupa tutto lo spazio rimasto: l'immagine si adatta senza deformarsi */
+  #schermo{flex:1;min-width:0;width:auto;height:auto;aspect-ratio:auto;max-width:none;margin:0}
+  #display:fullscreen #schermo{flex:none}
+  #barraOpera button,#barraOpera .file{min-height:40px;padding:8px 12px}
+  #modi button{min-height:40px;padding:8px 12px}
+  #anello{width:72px;height:72px}
+  #centroAnello b{font-size:1rem}
+  #centroAnello b.testo{font-size:.66rem}
+  #centroAnello small{font-size:.55rem}
+  #stato{flex:none;margin:0;font-size:.85rem;min-height:1.3em}
+  /* Pad a schermo e guida vivono dentro il menu in alto a destra */
+  #pannelloMenu{max-height:calc(100dvh - 90px);overflow-y:auto}
+  #pannelloMenu details{margin:0}
+  #pannelloMenu details summary{min-height:44px;padding:10px 12px;font-size:.85rem;border:1.5px solid #6f7672;border-radius:12px;color:#e8e3d6;cursor:pointer}
+  #pannelloMenu details ul{margin:8px 0 0;padding-left:18px;font-size:.8rem}
+  #pannelloMenu #griglia{gap:6px;margin:10px 0 4px}
+  #pannelloMenu .pad{width:auto;min-height:0;background:#1e2123;color:#e8e3d6;border-color:#6f7672;font-size:.85rem;border-radius:10px}
+  #pannelloMenu .pad.on{background:#b8693a;color:#fff}
+  @media (max-width:560px){
+    main{padding:6px}
+    #tavoletta{padding:8px}
+    #anello{width:64px;height:64px}
+  }
+  #esito{position:fixed;left:10px;right:10px;bottom:10px;z-index:30;max-width:560px;margin:0 auto;padding:10px;border-radius:14px;background:#262a2c;color:#e8e3d6;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  #esito[hidden]{display:none}
+  #esito video{width:100%;max-height:50dvh;border-radius:8px;background:#000}
+  #esito .riga{display:flex;gap:10px;align-items:center;margin-top:8px}
+  #esito a{flex:1;text-align:center;padding:10px;border-radius:10px;background:#b8693a;color:#fff;font-weight:700;text-decoration:none}
+  #esito button{min-height:40px;padding:8px 14px}
+  #racconto.rec{background:#b3261e;border-color:#e57b73;color:#fff}
+</style>
+</head>
+<body>
+<main>
+  <h1>Quadro Sonoro</h1>
+  <p>Collega Playtron, tocca i dettagli del quadro tenendo la terra: ogni pin suona una nota.</p>
+
+  <div id="tavoletta">
+    <div id="barraSuperiore">
+      <div id="marchio"><span id="led" aria-hidden="true"></span><span>Quadro Sonoro</span></div>
+      <div class="tastoMidi">
+        <button id="btnMenu" aria-expanded="false" aria-controls="pannelloMenu" title="Attiva audio e MIDI e scegli il dispositivo">Seleziona dispositivo MIDI</button>
+        <div id="pannelloMenu" role="group" aria-label="Dispositivo MIDI e diagnostica" hidden>
+          <label>Dispositivo MIDI
+            <select id="dispositivo" aria-label="Dispositivo MIDI"><option>Nessuno</option></select>
+          </label>
+          <p>La spia accanto al tasto si accende quando un dispositivo è collegato.</p>
+          <p id="diag" aria-live="off">Ultimo messaggio: nessuno.</p>
+          <label>Testo del racconto (sottotitolo nel video)
+            <textarea id="testo" rows="3" maxlength="400" placeholder="Es. la recensione dell'opera o il tuo racconto…" style="font:inherit;font-size:.8rem;border-radius:8px;border:1.5px solid #6f7672;background:#1e2123;color:#e8e3d6;padding:6px"></textarea>
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="voce" checked> Registra anche la voce (microfono)</label>
+          <button id="btnTest" type="button">Test audio (pad 1)</button>
+          <button id="btnPanico" type="button">Ferma tutti i suoni</button>
+          <details id="padMenu" class="nascondibile">
+          <summary>Pad a schermo e monitor dei pin</summary>
+          <div id="griglia" role="group" aria-label="16 pad: si illuminano quando il pin è toccato; puoi toccarli se il circuito non funziona"></div>
+          </details>
+          
+          <details class="nascondibile">
+          <summary>Guida rapida per il facilitatore</summary>
+          <ul>
+          <li><b>Prima fare, poi spiegare</b>: lasciate toccare e ascoltare (Fai, Ascolta); solo dopo chiedete di raccontare cosa è successo (Spiega).</li>
+          <li>Collega Playtron con un cavo dati <b>prima</b> di aprire Chrome o Edge.</li>
+          <li>Nessun suono? Controlla che chi tocca tenga la terra sulla pelle nuda, non sui vestiti.</li>
+          <li>Segnale debole? Inumidisci leggermente le dita.</li>
+          <li>Premi “Test audio” nel menu per verificare casse e volume, poi tocca un pin: l’ultimo messaggio MIDI compare nello stesso menu.</li>
+          <li>Con Zero-Screen lo schermo diventa nero; per uscire usa il tasto in basso a destra o Esc.</li>
+          </ul>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <section id="display" aria-label="Display dell'opera">
+      <div id="schermo">
+        <img id="img" alt="Opera caricata" draggable="false" hidden>
+        <div id="vuoto">Carica l’immagine del quadro: ogni tocco illuminerà il suo punto.</div>
+        <canvas id="visivo" aria-hidden="true"></canvas>
+      </div>
+    </section>
+
+    <div id="barraOpera" role="group" aria-label="Opera e punti">
+      <label class="file">Carica immagine
+        <input id="file" type="file" accept="image/*"></label>
+      <button id="posiziona" aria-pressed="false">Posiziona i punti</button>
+      <button id="conferma" type="button" hidden disabled>Conferma punto</button>
+      <button id="azzera">Azzera punti</button>
+      <label>Pad <select id="selPad" aria-label="Pad da posizionare"></select></label>
+      <div class="destra">
+        <button id="zero" aria-pressed="false" title="Modalità Zero-Screen: schermo nero">Zero-Screen</button>
+        <button id="intero">Schermo intero</button>
+        <button id="racconto" aria-pressed="false" title="Registra un unico file video: immagine, suono, voce e testo">● Racconto</button>
+      </div>
+    </div>
+
+    <div id="fascia">
+      <div id="modi" role="group" aria-label="Cosa controlla l'anello">
+        <button data-modo="volume" aria-pressed="true">Volume</button>
+        <button data-modo="riverbero" aria-pressed="false">Riverbero</button>
+        <button data-modo="timbro" aria-pressed="false">Timbro</button>
+        <button data-modo="scala" aria-pressed="false">Scala</button>
+      </div>
+      <div id="anello" role="slider" tabindex="0" aria-label="Volume" aria-valuemin="0" aria-valuemax="100"
+           aria-valuenow="50" aria-valuetext="50%" title="Trascina sull'anello o usa le frecce">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="pista" cx="50" cy="50" r="38" transform="rotate(135 50 50)"/>
+          <circle id="arco" cx="50" cy="50" r="38" transform="rotate(135 50 50)"/>
+          <circle id="manopola" r="6.5" cx="50" cy="50"/>
+        </svg>
+        <div id="centroAnello"><b id="valore">50</b><small>volume</small></div>
+      </div>
+    </div>
+  </div>
+
+  <p id="stato" role="status" aria-live="polite">Pronto. Premi “Seleziona dispositivo MIDI” in alto a destra per attivare audio e MIDI.</p>
+
+  <!-- Timbro e scala si cambiano dall'anello. I due selettori restano nascosti come memoria dei valori. -->
+  <div id="impostazioni" hidden>
+    <label>Scala
+      <select id="scala" aria-label="Scala musicale">
+        <option value="0,2,4,7,9">Pentatonica maggiore</option>
+        <option value="0,3,5,7,10">Pentatonica minore</option>
+        <option value="0,2,3,5,7,9,10">Dorica</option>
+        <option value="0,2,4,6,7,9,11">Lidia</option>
+      </select>
+    </label>
+    <label>Timbro
+      <select id="timbro" aria-label="Famiglia di timbri">
+        <option value="misto">Misto (ogni pad diverso)</option>
+        <option value="organico">Organico (pad caldo)</option>
+        <option value="metallico">Metallico (FM)</option>
+        <option value="legno">Legno e bambù (mallet)</option>
+        <option value="campane">Campane (chimes)</option>
+      </select>
+    </label>
+  </div>
+
+</main>
+
+<div id="esito" hidden role="dialog" aria-label="Racconto registrato">
+  <video id="esitoVideo" controls playsinline></video>
+  <div class="riga"><a id="esitoSalva" download>Salva il file</a><button id="esitoChiudi" type="button">Chiudi</button></div>
+</div>
+<button id="uscitaZero" hidden>Esci da Zero-Screen (Esc)</button>
+
+<script>
+/* ========== Quadro Sonoro v24 ==========
+   v24: interfaccia su una sola schermata; pad a schermo e guida sono nel menu in alto a destra.
+   v23: durante il posizionamento i punti già confermati restano visibili (piccoli, con bordo verde).
+   v22: il punto si mette "in prova" (si può spostare) e si passa al pad successivo solo con "Conferma punto".
+   Catena: Playtron (USB) -> Web MIDI -> Web Audio -> casse
+   Usare Chrome o Edge. Collegare Playtron PRIMA di aprire la pagina.
+   v21: il posizionamento parte spento e mostra un solo punto per volta (quello del pad selezionato).
+   Novità v20: limitatore + riverbero, durata minima delle note (contatti incerti),
+   schermo sempre acceso, Zero-Screen reale, impostazioni e immagine ricordate,
+   diagnostica MIDI e comandi di emergenza. */
+
+const NUM_PAD = 16;
+const NOTA_BASE = 48;               // Do3: il pad 1 parte da qui
+const MIN_MS = 140;                 // durata minima di una nota: un contatto debole si sente comunque
+let ctx, master, wet, midi, lock = null, rdest = null;   // rdest: copia dell'uscita audio per il Racconto
+const visPad = {};                  // pad in cui mostrare l'animazione (per Biotron != pad del suono)
+const voci = {};                    // funzioni di rilascio delle note attive, per pad
+const inizio = {};                  // istante di inizio di ogni nota
+const inRilascio = {};              // rilasci in attesa della durata minima
+
+const $ = id => document.getElementById(id);
+const stato = t => $('stato').textContent = t;
+const leggi = (k, def) => { try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } };
+const scrivi = (k, v) => { try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } };
+
+/* --- Scala: trasforma l'indice del pad (0-15) in una nota MIDI --- */
+function notaDelPad(i){
+  const gradi = $('scala').value.split(',').map(Number);
+  const ottava = Math.floor(i / gradi.length);
+  return NOTA_BASE + gradi[i % gradi.length] + 12 * ottava;
+}
+const frequenza = n => 440 * Math.pow(2, (n - 69) / 12);
+
+/* --- Timbri: ogni funzione crea una voce e restituisce la funzione di rilascio ---
+   Tutto è sintetizzato dal browser: nessun file da caricare. */
+const TIMBRI = ['organico','metallico','legno','campane'];
+
+function osc(tipo, f, dest, t, detune=0){
+  const o = ctx.createOscillator();
+  o.type = tipo; o.frequency.value = f; o.detune.value = detune;
+  o.connect(dest); o.start(t); return o;
+}
+
+/* Organico: due onde dentate leggermente scordate + filtro, sostenuto */
+function organico(f){
+  const t = ctx.currentTime;
+  const g = ctx.createGain(), fl = ctx.createBiquadFilter();
+  fl.type = 'lowpass'; fl.frequency.value = 1400;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.35, t + 0.06);
+  fl.connect(g).connect(master);
+  const o = [osc('sawtooth', f, fl, t, -7), osc('sawtooth', f, fl, t, 7)];
+  return () => { const r = ctx.currentTime;
+    g.gain.cancelScheduledValues(r); g.gain.setValueAtTime(g.gain.value, r);
+    g.gain.linearRampToValueAtTime(0, r + 0.5); o.forEach(x => x.stop(r + 0.55)); };
+}
+
+/* Metallico: sintesi FM (modulatore inarmonico), sostenuto */
+function metallico(f){
+  const t = ctx.currentTime;
+  const g = ctx.createGain(), mg = ctx.createGain();
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.4, t + 0.01);
+  mg.gain.setValueAtTime(f * 2.5, t); mg.gain.exponentialRampToValueAtTime(f * 0.3, t + 1.5);
+  const c = osc('sine', f, g, t), m = osc('sine', f * 3.5, mg, t);
+  mg.connect(c.frequency); g.connect(master);
+  return () => { const r = ctx.currentTime;
+    g.gain.cancelScheduledValues(r); g.gain.setValueAtTime(g.gain.value, r);
+    g.gain.linearRampToValueAtTime(0, r + 0.4); c.stop(r + 0.45); m.stop(r + 0.45); };
+}
+
+/* Legno e bambù: colpo secco con decadimento rapido */
+function legno(f){
+  const t = ctx.currentTime, g = ctx.createGain();
+  g.gain.setValueAtTime(0.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+  g.connect(master);
+  osc('sine', f, g, t).stop(t + 0.5);
+  osc('triangle', f * 2.0, g, t).stop(t + 0.2);   // “toc” iniziale
+  return () => {};
+}
+
+/* Campane: più parziali inarmoniche con coda lunga */
+function campane(f){
+  const t = ctx.currentTime, g = ctx.createGain();
+  g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + 2.8);
+  g.connect(master);
+  [1, 2.76, 5.4].forEach((r, k) => osc('sine', f * r, g, t).stop(t + 2.9 - k * 0.5));
+  return () => {};
+}
+const FABBRICA = {organico, metallico, legno, campane};
+
+function suona(i, vis = i){
+  if(!ctx || !master) return;
+  if(inRilascio[i]){ clearTimeout(inRilascio[i]); delete inRilascio[i]; }   // il contatto è tornato: la nota continua
+  if(voci[i]) return;
+  let nome = $('timbro').value;
+  if(nome === 'misto') nome = TIMBRI[i % TIMBRI.length];
+  voci[i] = FABBRICA[nome](frequenza(notaDelPad(i)));
+  inizio[i] = performance.now();
+  visPad[i] = vis;
+  segna(i, true);
+}
+function ferma(i){
+  const rel = voci[i]; if(!rel) return;
+  rel();
+  delete voci[i]; delete inizio[i];
+  segna(i, false);
+  delete visPad[i];
+}
+/* Rilascio con durata minima: se il dito sfiora appena, la nota si sente comunque */
+function rilascia(i){
+  if(!voci[i]) return;
+  const resto = MIN_MS - (performance.now() - inizio[i]);
+  if(resto > 0){
+    clearTimeout(inRilascio[i]);
+    inRilascio[i] = setTimeout(() => { delete inRilascio[i]; ferma(i); }, resto);
+  }else ferma(i);
+}
+/* Emergenza: zittisce tutto (cavo scollegato, note rimaste appese) */
+function fermaTutto(){
+  Object.keys(inRilascio).forEach(k => { clearTimeout(inRilascio[k]); delete inRilascio[k]; });
+  Object.keys(voci).forEach(k => ferma(+k));
+}
+function segna(i, on){
+  const p = document.querySelector(`[data-pad="${i}"]`);
+  if(p) p.classList.toggle('on', on);
+  $('led').classList.toggle('on', Object.keys(voci).length > 0);
+  visivo(visPad[i] ?? i, on);
+}
+
+/* --- Display dell'opera ---
+   L'immagine resta sul tuo dispositivo (ricordata nel browser, non inviata da nessuna parte).
+   Ai 16 pad assegni un punto sull'immagine: dove hai messo il nastro di rame.
+   Quando un pad suona, quel punto si illumina. Le note basse sono cerchi grandi,
+   le alte piccoli: il messaggio non dipende solo dal colore. */
+const cv = $('visivo'), c2 = cv.getContext('2d'), schermo = $('schermo'), img = $('img');
+const ridotto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let posizionando = false, selPad = 0, bozza = null;   // bozza: punto in prova, non ancora confermato
+let tenuti = {}, anelli = [], raf = 0, rapporto = 4 / 3;
+
+let punti = leggi('qs_punti', {});        // coordinate relative (0-1): restano giuste a qualunque dimensione
+let mappaNote = leggi('qs_mappa', {});    // nota MIDI -> pad, appresa toccando i pin fisici
+const salvaPunti = () => scrivi('qs_punti', punti);
+const salvaMappa = () => scrivi('qs_mappa', mappaNote);
+
+function imparaPin(nota){
+  for(const k in mappaNote) if(mappaNote[k] === selPad) delete mappaNote[k];   // un pad, una sola nota
+  mappaNote[nota] = selPad; salvaMappa();
+  stato(`Pin riconosciuto (nota ${nota}) come pad ${selPad + 1}. Ora tocca sull’immagine il suo punto.`);
+}
+
+/* Area occupata dall'immagine dentro il display (adattata senza deformarla) */
+function areaImmagine(){
+  const cw = cv.width, ch = cv.height;
+  if(!img.naturalWidth || img.hidden) return {x: 0, y: 0, w: cw, h: ch};
+  const w = cw / ch > rapporto ? ch * rapporto : cw, h = w / rapporto;
+  return {x: (cw - w) / 2, y: (ch - h) / 2, w, h};
+}
+/* Se un pad non ha un punto, usa una posizione di riserva sulla griglia 4x4 */
+const posPad = i => {
+  const p = punti[i] || {x: ((i % 4) + 0.5) / 4, y: (Math.floor(i / 4) + 0.5) / 4}, R = areaImmagine();
+  return {x: R.x + p.x * R.w, y: R.y + p.y * R.h};
+};
+const raggio = i => Math.min(cv.width, cv.height) * (0.10 - i * 0.004);
+const colore = (i, a) => `hsla(${i * 22}, 90%, 60%, ${a})`;
+
+for(let i = 0; i < NUM_PAD; i++) $('selPad').add(new Option('Pad ' + (i + 1), i));
+
+function adatta(){
+  if(document.fullscreenElement){
+    schermo.style.width = innerWidth + 'px'; schermo.style.height = innerHeight + 'px';
+  }else{ schermo.style.width = ''; schermo.style.height = ''; }
+  cv.width = schermo.clientWidth; cv.height = schermo.clientHeight; ridisegna();
+}
+new ResizeObserver(adatta).observe(schermo);
+addEventListener('resize', adatta);
+document.addEventListener('fullscreenchange', adatta);
+
+const ridisegna = () => { if(!raf) raf = requestAnimationFrame(disegna); };
+
+function visivo(i, on){
+  if(on){ tenuti[i] = true; if(!ridotto) anelli.push({i, k: 0}); }
+  else delete tenuti[i];
+  ridisegna();
+}
+function disegna(){
+  raf = 0;
+  c2.clearRect(0, 0, cv.width, cv.height);
+  for(const i in tenuti){                       // alone fisso finché il circuito è chiuso
+    const {x, y} = posPad(+i);
+    c2.fillStyle = colore(+i, 0.6);
+    c2.beginPath(); c2.arc(x, y, raggio(+i), 0, 7); c2.fill();
+    c2.strokeStyle = '#fff'; c2.lineWidth = 3; c2.stroke();
+  }
+  anelli = anelli.filter(a => a.k < 1);         // anelli che si espandono e svaniscono
+  for(const a of anelli){
+    const {x, y} = posPad(a.i);
+    c2.strokeStyle = colore(a.i, 1 - a.k); c2.lineWidth = 4;
+    c2.beginPath(); c2.arc(x, y, raggio(a.i) * (1 + a.k * 1.6), 0, 7); c2.stroke();
+    a.k += 0.03;
+  }
+  if(posizionando){                             // punti già confermati: piccoli e discreti, sempre visibili
+    c2.font = 'bold 11px system-ui,sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle';
+    for(let i = 0; i < NUM_PAD; i++){
+      if(i === selPad || !punti[i]) continue;   // il pad in corso è disegnato qui sotto, in evidenza
+      const {x, y} = posPad(i);
+      c2.beginPath(); c2.arc(x, y, 11, 0, 7);
+      c2.fillStyle = 'rgba(16,23,22,.8)'; c2.fill();
+      c2.strokeStyle = '#7be0a0'; c2.lineWidth = 2; c2.stroke();
+      c2.fillStyle = '#fff'; c2.fillText(i + 1, x, y + 1);
+    }
+  }
+  const p = posizionando && (bozza || punti[selPad]);   // il pad selezionato: segnaposto grande in evidenza
+  if(p){
+    const R = areaImmagine(), x = R.x + p.x * R.w, y = R.y + p.y * R.h;
+    c2.font = 'bold 16px system-ui,sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle';
+    c2.beginPath(); c2.arc(x, y, 18, 0, 7);
+    c2.fillStyle = '#b8693a'; c2.fill();
+    c2.strokeStyle = '#fff'; c2.lineWidth = 2; c2.stroke();
+    c2.fillStyle = '#fff'; c2.fillText(selPad + 1, x, y + 1);
+    if(bozza){                                  // punto in prova: anello tratteggiato finché non è confermato
+      c2.setLineDash([5, 4]); c2.beginPath(); c2.arc(x, y, 27, 0, 7);
+      c2.strokeStyle = '#fff'; c2.lineWidth = 2; c2.stroke(); c2.setLineDash([]);
+    }
+  }
+  if(Object.keys(tenuti).length || anelli.length) raf = requestAnimationFrame(disegna);
+}
+
+/* --- Menu: dispositivo MIDI e diagnostica --- */
+const pannelloMenu = $('pannelloMenu'), btnMenu = $('btnMenu');
+function menu(apri){
+  pannelloMenu.hidden = !apri; btnMenu.setAttribute('aria-expanded', apri);
+  if(apri) $('dispositivo').focus();
+}
+btnMenu.addEventListener('click', async () => {
+  const apri = pannelloMenu.hidden;
+  menu(apri);
+  if(apri) await avvia();                         // la prima volta chiede il permesso MIDI
+});
+document.addEventListener('click', e => {         // clic fuori: chiude
+  if(!pannelloMenu.hidden && !pannelloMenu.contains(e.target) && !btnMenu.contains(e.target)) menu(false);
+});
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  if(document.body.classList.contains('zero')) zero(false);
+  else if(!pannelloMenu.hidden){ menu(false); btnMenu.focus(); }
+});
+$('btnTest').addEventListener('click', async () => {
+  await avvia();
+  if(!ctx) return;
+  suona(0); setTimeout(() => ferma(0), 700);
+  stato('Test audio: se non senti nulla controlla casse, volume del computer e anello del volume.');
+});
+$('btnPanico').addEventListener('click', () => { fermaTutto(); stato('Tutti i suoni fermati.'); });
+
+/* --- Carica l'immagine dell'opera (ridimensionata e ricordata per la prossima sessione) --- */
+function mostraImmagine(src, msg){
+  img.onload = () => {
+    rapporto = img.naturalWidth / img.naturalHeight;
+    img.hidden = false; $('vuoto').hidden = true;
+    adatta(); stato(msg);
+  };
+  img.src = src;
+}
+$('file').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  const url = URL.createObjectURL(f), t = new Image();
+  t.onload = () => {
+    const s = Math.min(1, 1600 / Math.max(t.naturalWidth, t.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(t.naturalWidth * s); c.height = Math.round(t.naturalHeight * s);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(t, 0, 0, c.width, c.height);
+    const dati = c.toDataURL('image/jpeg', 0.85);
+    URL.revokeObjectURL(url);
+    const salvata = scrivi('qs_img', dati);
+    mostraImmagine(dati, 'Immagine caricata' + (salvata ? ' e ricordata su questo dispositivo' : ' (troppo grande per essere ricordata)') +
+      '. Premi “Posiziona i punti” per collegare i 16 pad ai dettagli dell’opera.');
+  };
+  t.onerror = () => stato('Non riesco a leggere questa immagine: prova con un file JPG o PNG.');
+  t.src = url;
+});
+{ const salvata = leggi('qs_img', null);
+  if(salvata) mostraImmagine(salvata, 'Opera ripristinata dalla sessione precedente. Collega Playtron e premi “Seleziona dispositivo MIDI”.'); }
+
+/* --- Posizionamento: tocca l'immagine dove hai applicato il nastro di rame --- */
+/* Il posizionamento avviene in due tempi: tocca (o trascina) l'immagine per mettere il punto "in prova",
+   poi premi "Conferma punto". Solo dopo la conferma si passa al pad successivo. */
+function aggiornaConferma(){
+  $('conferma').hidden = !posizionando;
+  $('conferma').disabled = !bozza;
+  schermo.style.touchAction = posizionando ? 'none' : '';     // trascinare il punto non fa scorrere la pagina
+}
+function puntoDaEvento(e){
+  const r = schermo.getBoundingClientRect(), R = areaImmagine();
+  const lim = v => Math.max(0, Math.min(1, v));
+  return {x: lim((e.clientX - r.left - R.x) / R.w), y: lim((e.clientY - r.top - R.y) / R.h)};
+}
+$('posiziona').addEventListener('click', e => {
+  posizionando = !posizionando; bozza = null;      // un punto non confermato viene scartato
+  if(posizionando) menu(false);
+  e.currentTarget.setAttribute('aria-pressed', posizionando);
+  e.currentTarget.textContent = posizionando ? 'Fine posizionamento' : 'Posiziona i punti';
+  stato(posizionando ? `Posizionamento attivo. Pad ${selPad + 1}: tocca il suo pin fisico sul Playtron, poi tocca l’immagine per mettere il punto (puoi spostarlo) e premi “Conferma punto”.` : 'Posizionamento spento. Punti e pin salvati.');
+  aggiornaConferma(); ridisegna();
+});
+$('selPad').addEventListener('change', e => { selPad = +e.target.value; bozza = null; aggiornaConferma(); ridisegna(); });
+let trascinaPunto = false;
+schermo.addEventListener('pointerdown', e => {
+  if(!posizionando) return;
+  trascinaPunto = true;
+  try{ schermo.setPointerCapture(e.pointerId); }catch(err){}
+  bozza = puntoDaEvento(e); aggiornaConferma();
+  stato(`Pad ${selPad + 1}: punto in prova. Trascina per spostarlo, poi premi “Conferma punto”.`);
+  ridisegna();
+});
+schermo.addEventListener('pointermove', e => { if(trascinaPunto){ bozza = puntoDaEvento(e); ridisegna(); } });
+['pointerup','pointercancel'].forEach(ev => schermo.addEventListener(ev, () => trascinaPunto = false));
+$('conferma').addEventListener('click', () => {
+  if(!bozza) return;
+  punti[selPad] = bozza; bozza = null; salvaPunti();
+  if(selPad >= NUM_PAD - 1){
+    stato('Pad 16 confermato: tutti i punti sono posizionati. Premi “Fine posizionamento”.');
+  }else{
+    selPad++; $('selPad').value = selPad;
+    stato(`Pad ${selPad} confermato. Ora il pad ${selPad + 1}: tocca il suo pin fisico, poi tocca l’immagine.`);
+  }
+  aggiornaConferma(); ridisegna();
+});
+$('azzera').addEventListener('click', () => {
+  if(!confirm('Azzerare tutti i punti e i pin appresi?')) return;
+  punti = {}; mappaNote = {}; salvaPunti(); salvaMappa(); stato('Punti e pin azzerati.'); ridisegna();
+});
+$('intero').addEventListener('click', () => {
+  if(document.fullscreenElement) document.exitFullscreen();
+  else if($('display').requestFullscreen) $('display').requestFullscreen();
+  else stato('Schermo intero non disponibile su questo dispositivo.');
+});
+
+/* --- Griglia a schermo: alternativa se il circuito non si chiude, e monitor dei pin --- */
+const griglia = $('griglia');
+for(let i = 0; i < NUM_PAD; i++){
+  const b = document.createElement('button');
+  b.className = 'pad'; b.dataset.pad = i; b.textContent = i + 1;
+  b.setAttribute('aria-label', 'Pad ' + (i + 1));
+  b.addEventListener('pointerdown', async e => { e.preventDefault(); await avvia(); suona(i); });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev => b.addEventListener(ev, () => rilascia(i)));
+  b.addEventListener('keydown', async e => { if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); await avvia(); suona(i); }});
+  b.addEventListener('keyup',   e => { if(e.key === ' ' || e.key === 'Enter') rilascia(i); });
+  griglia.appendChild(b);
+}
+
+/* --- MIDI: Note On/Off da Playtron --- */
+function messaggioMidi(e){
+  const [stato_, nota, vel] = e.data;
+  const tipo = stato_ & 0xF0, canale = stato_ & 0x0F;
+  const notaOn = tipo === 0x90 && vel > 0;
+  const biotron = /biotron/i.test((e.target && e.target.name) || '');
+  let pad, vis;
+  if(biotron){
+    /* Biotron: la nota è la melodia della pianta e cambia di continuo, quindi non indica un punto.
+       Il punto sull'opera lo decide il canale: canale 1 = pianta (pad 1), canale 2 = luce (pad 2). */
+    pad = nota % NUM_PAD; vis = Math.min(canale, 1);
+    if(notaOn && posizionando) stato('Biotron: il canale 1 (pianta) è il pad 1, il canale 2 (luce) è il pad 2.');
+  }else{
+    /* Playtron e altri: ogni pin ha la sua nota. Durante "Posiziona i punti" la nota viene imparata;
+       una nota mai vista viene collegata al primo pad che ha già un punto e non ha ancora un pin. */
+    if(notaOn && posizionando) imparaPin(nota);
+    if(notaOn && !(nota in mappaNote)){
+      const usati = Object.values(mappaNote);
+      const libero = [...Array(NUM_PAD).keys()].find(k => punti[k] && !usati.includes(k));
+      if(libero !== undefined){ mappaNote[nota] = libero; salvaMappa(); }
+    }
+    pad = (nota in mappaNote) ? mappaNote[nota] : nota % NUM_PAD; vis = pad;
+  }
+  if(notaOn){
+    $('diag').textContent = `Ultimo messaggio: nota ${nota}, canale ${canale + 1} → pad ${pad + 1}.`;
+    suona(pad, vis);
+  }else if(tipo === 0x80 || (tipo === 0x90 && vel === 0)) rilascia(pad);
+}
+function aggiornaDispositivi(){
+  const sel = $('dispositivo');
+  sel.innerHTML = '';
+  let n = 0;
+  midi.inputs.forEach(inp => {
+    inp.onmidimessage = messaggioMidi;
+    const o = document.createElement('option');
+    o.textContent = inp.name; sel.appendChild(o); n++;
+  });
+  if(!n){ sel.innerHTML = '<option>Nessuno</option>'; fermaTutto(); }   // cavo scollegato: niente note appese
+  btnMenu.classList.toggle('collegato', n > 0);
+  stato(n ? `Collegato: ${n} dispositivo/i MIDI. Tocca il quadro.`
+          : 'Nessun dispositivo MIDI. Controlla che il cavo USB sia un cavo dati; se serve, ricarica la pagina.');
+}
+
+/* --- Impostazioni ricordate: volume, riverbero, timbro, scala --- */
+const VOL_MAX = 70, C = 2 * Math.PI * 38;      // il volume interno arriva al massimo a 70: tetto di sicurezza
+const val = {volume: 35, riverbero: 25};
+{ const s = leggi('qs_imp', {});
+  if(typeof s.volume === 'number') val.volume = Math.max(0, Math.min(VOL_MAX, s.volume));
+  if(typeof s.riverbero === 'number') val.riverbero = Math.max(0, Math.min(100, s.riverbero));
+  ['timbro','scala'].forEach(id => { if(s[id] && [...$(id).options].some(o => o.value === s[id])) $(id).value = s[id]; });
+}
+const salvaImp = () => scrivi('qs_imp', {volume: val.volume, riverbero: val.riverbero, timbro: $('timbro').value, scala: $('scala').value});
+
+/* --- Audio: voci -> master -> (riverbero) -> limitatore -> casse --- */
+function impulso(sec = 2.2){                    // riverbero sintetizzato: rumore con coda che svanisce
+  const n = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, n, ctx.sampleRate);
+  for(let ch = 0; ch < 2; ch++){
+    const d = b.getChannelData(ch);
+    for(let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+  }
+  return b;
+}
+function applica(){
+  if(!ctx || !master) return;
+  master.gain.setTargetAtTime(val.volume / 100, ctx.currentTime, 0.02);
+  wet.gain.setTargetAtTime(val.riverbero / 100 * 0.6, ctx.currentTime, 0.05);
+}
+
+/* Lo schermo resta acceso: con Playtron nessuno tocca lo schermo e altrimenti il tablet andrebbe in stand-by */
+async function tieniSveglio(){
+  try{
+    if('wakeLock' in navigator && !lock){
+      lock = await navigator.wakeLock.request('screen');
+      lock.addEventListener('release', () => { lock = null; });
+    }
+  }catch(e){ /* non supportato o negato: nessun problema, si va avanti */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'visible' || !ctx) return;
+  if(ctx.state === 'suspended') ctx.resume();
+  tieniSveglio();
+});
+
+/* Attiva audio e MIDI (serve un gesto dell'utente: parte dal clic sul tasto) */
+async function avvia(){
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)({latencyHint:'interactive'});
+  await ctx.resume();
+  if(!master){
+    master = ctx.createGain(); wet = ctx.createGain();
+    master.gain.value = val.volume / 100; wet.gain.value = val.riverbero / 100 * 0.6;
+    const limitatore = ctx.createDynamicsCompressor();       // protegge le casse quando suonano molte voci
+    limitatore.threshold.value = -18; limitatore.knee.value = 20; limitatore.ratio.value = 6;
+    limitatore.attack.value = 0.005; limitatore.release.value = 0.2;
+    const conv = ctx.createConvolver(); conv.buffer = impulso();
+    master.connect(limitatore); master.connect(conv); conv.connect(wet); wet.connect(limitatore);
+    limitatore.connect(ctx.destination);
+    rdest = ctx.createMediaStreamDestination(); limitatore.connect(rdest);   // serve a registrare il racconto (suono + voce)
+  }
+  tieniSveglio();
+  if(midi) return;
+  if(!navigator.requestMIDIAccess){
+    stato('Questo browser non supporta Web MIDI: usa Chrome o Edge. I pad a schermo funzionano comunque.');
+    return;
+  }
+  try{
+    midi = await navigator.requestMIDIAccess();
+    midi.onstatechange = aggiornaDispositivi;
+    aggiornaDispositivi();
+  }catch(err){
+    stato('Permesso MIDI negato. Consentilo dal lucchetto accanto all’indirizzo. I pad a schermo funzionano comunque.');
+  }
+}
+
+/* --- Touch ring multifunzione ---
+   L'anello (270°, apertura in basso) controlla una cosa alla volta:
+   Volume e Riverbero (continui), Timbro e Scala (a scatti). */
+let modo = 'volume';
+const MODI = {
+  volume:    {nome: 'Volume',    mini: 'volume',    continuo: true, max: VOL_MAX},
+  riverbero: {nome: 'Riverbero', mini: 'riverbero', continuo: true, max: 100},
+  timbro: {nome: 'Timbro', mini: 'timbro', sel: 'timbro', nomi: ['Misto','Organico','Metallico','Legno','Campane']},
+  scala:  {nome: 'Scala',  mini: 'scala',  sel: 'scala',  nomi: ['Penta +','Penta −','Dorica','Lidia']}
+};
+function aggiornaAnello(){
+  const m = MODI[modo], a = $('anello');
+  const n = m.continuo ? 0 : m.nomi.length, idx = m.continuo ? 0 : $(m.sel).selectedIndex;
+  const k = m.continuo ? val[modo] / m.max : idx / (n - 1);
+  $('arco').setAttribute('stroke-dasharray', `${k * 0.75 * C} ${C}`);
+  const ang = (135 + k * 270) * Math.PI / 180;
+  $('manopola').setAttribute('cx', 50 + 38 * Math.cos(ang));
+  $('manopola').setAttribute('cy', 50 + 38 * Math.sin(ang));
+  const testo = m.continuo ? String(Math.round(k * 100)) : m.nomi[idx];
+  $('valore').textContent = testo; $('valore').classList.toggle('testo', !m.continuo);
+  document.querySelector('#centroAnello small').textContent = m.mini;
+  a.setAttribute('aria-label', m.nome);
+  a.setAttribute('aria-valuemax', m.continuo ? 100 : n - 1);
+  a.setAttribute('aria-valuenow', m.continuo ? Math.round(k * 100) : idx);
+  a.setAttribute('aria-valuetext', m.continuo ? testo + '%' : testo);
+}
+function daFrazione(k){                                           // k = 0..1 lungo l'anello
+  const m = MODI[modo];
+  if(m.continuo){ val[modo] = k * m.max; applica(); }
+  else $(m.sel).selectedIndex = Math.round(k * (m.nomi.length - 1));
+  salvaImp(); aggiornaAnello();
+}
+function daPuntatore(e){
+  const r = $('anello').getBoundingClientRect();
+  let rel = (Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI - 135 + 360) % 360;
+  if(rel > 270) rel = rel < 315 ? 270 : 0;                         // zona morta: va al capo più vicino
+  daFrazione(rel / 270);
+}
+let trascina = false;
+$('anello').addEventListener('pointerdown', e => { trascina = true; e.currentTarget.setPointerCapture(e.pointerId); daPuntatore(e); });
+$('anello').addEventListener('pointermove', e => { if(trascina) daPuntatore(e); });
+['pointerup','pointercancel'].forEach(ev => $('anello').addEventListener(ev, () => trascina = false));
+$('anello').addEventListener('keydown', e => {
+  const m = MODI[modo], n = m.continuo ? 50 : m.nomi.length - 1;
+  const k = m.continuo ? val[modo] / m.max : $(m.sel).selectedIndex / n;
+  const passo = 1 / n, mosse = {ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 5, PageDown: -5};
+  if(e.key in mosse){ e.preventDefault(); daFrazione(Math.max(0, Math.min(1, k + mosse[e.key] * passo))); }
+  else if(e.key === 'Home'){ e.preventDefault(); daFrazione(0); }
+  else if(e.key === 'End'){ e.preventDefault(); daFrazione(1); }
+});
+document.querySelectorAll('#modi button').forEach(b => b.addEventListener('click', () => {
+  modo = b.dataset.modo;
+  document.querySelectorAll('#modi button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  aggiornaAnello();
+}));
+['timbro','scala'].forEach(id => $(id).addEventListener('change', () => { salvaImp(); aggiornaAnello(); }));
+aggiornaAnello();
+
+/* --- Zero-Screen: schermo nero, resta solo l'ascolto ---
+   Si esce con il tasto in basso a destra o con Esc. */
+function zero(on){
+  document.documentElement.classList.toggle('zero', on);
+  document.body.classList.toggle('zero', on);
+  $('zero').setAttribute('aria-pressed', on);
+  $('uscitaZero').hidden = !on;
+  if(on){
+    if(document.fullscreenElement) document.exitFullscreen();
+    menu(false); $('uscitaZero').focus();
+  }else $('zero').focus();
+}
+$('zero').addEventListener('click', () => zero(true));
+$('uscitaZero').addEventListener('click', () => zero(false));
+
+/* ===== Racconto sonoro: immagine + suono + voce + testo in un unico file video (WebM) =====
+   Prima fare (suona il quadro), poi spiegare (racconta a voce): il microfono NON va alle casse,
+   così non c'è eco; finisce solo nella registrazione. Funziona in Chrome ed Edge. */
+let rc = null;
+const MAX_RACCONTO_S = 600;                          // limite di sicurezza: 10 minuti
+function righe(x, t, maxW){
+  const out = []; let r = '';
+  for(const p of t.split(/\s+/)){ const q = r ? r + ' ' + p : p; if(x.measureText(q).width > maxW && r){ out.push(r); r = p; } else r = q; }
+  if(r) out.push(r); return out;
+}
+async function avviaRacconto(){
+  await avvia();
+  if(!ctx || !rdest || !window.MediaRecorder){ stato('Registrazione non disponibile: usa Chrome o Edge.'); return; }
+  let mic = null, nodoMic = null;
+  if($('voce').checked){
+    try{ mic = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
+         nodoMic = ctx.createMediaStreamSource(mic); nodoMic.connect(rdest); }
+    catch(e){ mic = null; stato('Microfono non disponibile: registro solo il suono.'); }
+  }
+  const W = 1280, H = Math.round(W * cv.height / cv.width) || 960;
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+  const testo = $('testo').value.trim();
+  const disegna = () => {
+    x.fillStyle = '#1b2624'; x.fillRect(0, 0, W, H);
+    if(img.naturalWidth && !img.hidden){ const R = areaImmagine(), k = W / cv.width; x.drawImage(img, R.x * k, R.y * k, R.w * k, R.h * k); }
+    x.drawImage(cv, 0, 0, W, H);                                   // gli aloni dei punti che suonano
+    if(testo){
+      const fs = Math.round(W / 32), lh = Math.round(fs * 1.3); x.font = 'bold ' + fs + 'px Georgia, serif';
+      const ls = righe(x, testo, W * 0.9), bh = ls.length * lh + fs;
+      x.fillStyle = 'rgba(0,0,0,.62)'; x.fillRect(0, H - bh, W, bh);
+      x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'top';
+      ls.forEach((l, i) => x.fillText(l, W / 2, H - bh + fs / 2 + i * lh));
+    }
+  };
+  const flusso = c.captureStream(30);
+  rdest.stream.getAudioTracks().forEach(t => flusso.addTrack(t));
+  const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+  const mr = new MediaRecorder(flusso, mime ? {mimeType: mime, videoBitsPerSecond: 2500000} : undefined);
+  const parti = [];
+  mr.ondataavailable = e => { if(e.data.size) parti.push(e.data); };
+  mr.onstop = () => {
+    cancelAnimationFrame(rc.raf); clearTimeout(rc.limite);
+    if(mic) mic.getTracks().forEach(t => t.stop());                // spegne davvero il microfono
+    if(nodoMic) nodoMic.disconnect();
+    const blob = new Blob(parti, {type: 'video/webm'}), url = URL.createObjectURL(blob), d = new Date();
+    const nome = 'racconto-sonoro-' + d.toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.webm';
+    const v = $('esitoVideo'); if(v.src) URL.revokeObjectURL(v.src);
+    v.src = url; $('esitoSalva').href = url; $('esitoSalva').download = nome; $('esito').hidden = false;
+    $('racconto').classList.remove('rec'); $('racconto').setAttribute('aria-pressed', false); $('racconto').textContent = '● Racconto';
+    stato('Racconto pronto: riascoltalo e salva il file.'); rc = null;
+  };
+  const ciclo = () => { disegna(); rc.raf = requestAnimationFrame(ciclo); };
+  rc = {mr, raf: 0, limite: setTimeout(fermaRacconto, MAX_RACCONTO_S * 1000)};
+  mr.start(1000); ciclo();
+  $('esito').hidden = true;
+  $('racconto').classList.add('rec'); $('racconto').setAttribute('aria-pressed', true); $('racconto').textContent = '■ Ferma racconto';
+  stato(mic ? 'Registro suono e voce. Suona il quadro e racconta; premi “Ferma racconto” per finire.' : 'Registro il suono. Premi “Ferma racconto” per finire.');
+}
+function fermaRacconto(){ if(rc && rc.mr.state !== 'inactive') rc.mr.stop(); }
+$('racconto').addEventListener('click', () => { rc ? fermaRacconto() : avviaRacconto(); });
+$('esitoChiudi').addEventListener('click', () => { const v = $('esitoVideo'); v.pause(); $('esito').hidden = true; });
+</script>
+</body>
+</html>
